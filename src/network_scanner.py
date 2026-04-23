@@ -54,7 +54,9 @@ if __name__ == "__main__":
     current_devices = scan_network(target)
     baseline_devices = load_baseline()
 
-    new_devices = find_new_devices(current_devices, baseline_devices)
+    from alerts import detect_new_devices
+
+    new_devices = detect_new_devices(current_devices, baseline_devices)
 
     print("Devices found:")
     for d in current_devices:
