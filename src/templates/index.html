@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NetWatch Dashboard</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+        }
+
+        table {
+            margin: auto;
+            border-collapse: collapse;
+            width: 80%;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #444;
+        }
+
+        th {
+            background: #1e293b;
+        }
+
+        .HIGH { color: red; font-weight: bold; }
+        .MEDIUM { color: orange; }
+        .LOW { color: lightgreen; }
+    </style>
+</head>
+<body>
+
+    <h1>🚨 NetWatch Security Dashboard</h1>
+
+    <table>
+        <tr>
+            <th>IP</th>
+            <th>MAC</th>
+            <th>Risk</th>
+            <th>Score</th>
+        </tr>
+
+        {% for d in devices %}
+        <tr>
+            <td>{{ d.ip }}</td>
+            <td>{{ d.mac }}</td>
+            <td class="{{ d.level }}">{{ d.level }}</td>
+            <td>{{ d.score }}</td>
+        </tr>
+        {% endfor %}
+
+    </table>
+
+</body>
+</html>
