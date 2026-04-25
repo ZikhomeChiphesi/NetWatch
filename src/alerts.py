@@ -24,3 +24,18 @@ def detect_new_devices(current_devices, known_devices):
             log_alert(f"New device detected: {device['ip']} ({device['mac']})")
 
     return new_devices
+
+
+def trigger_threat_alert(device, reason="HIGH RISK DEVICE"):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    message = (
+        f"[THREAT ALERT] {timestamp} | "
+        f"{reason} | "
+        f"{device['ip']} ({device['mac']})"
+    )
+
+    print("\n🚨 ALERT:", message)
+
+    with open(ALERT_LOG, "a") as f:
+        f.write(message + "\n")

@@ -3,12 +3,13 @@ from rich.console import Console
 from rich.table import Table
 from network_scanner import scan_network, load_baseline
 from threat_engine import analyze_device
+from alerts import trigger_threat_alert
+from email_alerts import send_email_alert
 
 console = Console()
 
 TARGET_NETWORK = "192.168.1.1/24"
 SCAN_INTERVAL = 10
-
 
 def display_dashboard(devices, known_devices):
     table = Table(title="NetWatch Security Dashboard")
@@ -21,6 +22,15 @@ def display_dashboard(devices, known_devices):
     for d in devices:
         result = analyze_device(d, known_devices)
 
+        if result["level"] == "HIGH":
+            trigger_threat_alert(result, "High Risk Device Detected")
+
+            send_email_alert(
+                result,
+                result["score"],
+                "High risk device detected on network"
+            )
+
         table.add_row(
             result["ip"],
             result["mac"],
@@ -30,7 +40,6 @@ def display_dashboard(devices, known_devices):
 
     console.clear()
     console.print(table)
-
 
 def run_dashboard():
     console.print("[bold green]Starting NetWatch Dashboard Mode...[/bold green]")
