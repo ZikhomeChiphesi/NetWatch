@@ -2,13 +2,8 @@
 <html>
 <head>
     <title>NetWatch Dashboard</title>
+
     <style>
-        <script>
-            setTimeout(function(){
-                window.location.reload(1);
-            }, 10000); // refresh every 10 seconds
-        </script>
-        
         body {
             font-family: Arial;
             background: #0f172a;
@@ -34,12 +29,50 @@
         .HIGH { color: red; font-weight: bold; }
         .MEDIUM { color: orange; }
         .LOW { color: lightgreen; }
+
+        select {
+            padding: 8px;
+            margin-top: 10px;
+        }
     </style>
 </head>
+
 <body>
 
     <h1>🚨 NetWatch Security Dashboard</h1>
 
+    <!-- 🌐 NETWORK SELECTOR -->
+    <form method="GET" style="margin-bottom: 20px;">
+        <label for="network">Select Network:</label>
+
+        <select name="network" onchange="this.form.submit()">
+            {% for net in networks %}
+                <option value="{{ net }}" {% if net == selected_network %}selected{% endif %}>
+                    {{ net }}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <!-- ACTIVE NETWORK -->
+    <h2>🌐 Active Network: {{ selected_network }}</h2>
+
+    <!-- 🧠 AI SECTION -->
+    <div style="margin-bottom:20px;">
+        <h2>🧠 AI Network Health</h2>
+
+        <p>Baseline Devices: {{ ai.baseline }}</p>
+        <p>Current Devices: {{ ai.current }}</p>
+        <p>Anomaly Score: {{ ai.anomaly_score }}</p>
+
+        {% if ai.is_anomaly %}
+            <h3 style="color:red;">⚠ ANOMALY DETECTED</h3>
+        {% else %}
+            <h3 style="color:lightgreen;">NORMAL BEHAVIOR</h3>
+        {% endif %}
+    </div>
+
+    <!-- 📊 DEVICE TABLE -->
     <table>
         <tr>
             <th>IP</th>
@@ -56,8 +89,41 @@
             <td>{{ d.score }}</td>
         </tr>
         {% endfor %}
-
     </table>
+
+    <!-- ⚡ SOCKET.IO -->
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+
+    <script>
+        const socket = io();
+
+        socket.on("update", function(data) {
+            const selectedNetwork = "{{ selected_network }}";
+
+            // If selected network not in incoming data, ignore
+            if (!data[selectedNetwork]) return;
+
+            const devices = data[selectedNetwork].devices;
+
+            const table = document.querySelector("table");
+
+            // Clear old rows (except header)
+            const rows = table.querySelectorAll("tr");
+            rows.forEach((row, index) => {
+                if (index !== 0) row.remove();
+            });
+
+            // Insert updated rows
+            devices.forEach(device => {
+                const row = table.insertRow();
+
+                row.insertCell(0).innerText = device.ip;
+                row.insertCell(1).innerText = device.mac;
+                row.insertCell(2).innerText = device.level || "N/A";
+                row.insertCell(3).innerText = device.score || "0";
+            });
+        });
+    </script>
 
 </body>
 </html>
