@@ -2,3 +2,4 @@ flask
 rich
 scapy
 jinja2
+requests
