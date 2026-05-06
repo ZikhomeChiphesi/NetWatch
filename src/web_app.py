@@ -1,11 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO
 import requests
-from network_scanner import load_baseline
+from src.network_scanner import load_baseline
 from threat_engine import analyze_device
 from anomaly_ai import AnomalyEngine
 
 from database import init_db, log_scan, log_devices
+
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:5001")
 
 app = Flask(__name__)
 app.secret_key = "netwatch_secret_key"
@@ -44,7 +46,7 @@ def dashboard():
 
     # Fetch network data from API server
     try:
-        response = requests.get("http://127.0.0.1:5001/devices")
+        response = requests.get(f"{API_URL}/devices")
         data = response.json() if response.status_code == 200 else {}
     except:
         data = {}
@@ -96,7 +98,7 @@ def dashboard():
 def stream_data():
     while True:
         try:
-            response = requests.get("http://127.0.0.1:5001/devices")
+            response = requests.get(f"{API_URL}/devices")
             data = response.json() if response.status_code == 200 else {}
 
             socketio.emit("update", data)
