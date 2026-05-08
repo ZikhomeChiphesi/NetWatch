@@ -1,17 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Login - NetWatch</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — NetWatch</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 320px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        h2 { text-align: center; margin-bottom: 1.5rem; }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 1rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        button:hover { background: #2563eb; }
+
+        .error {
+            background: #7f1d1d;
+            color: #fca5a5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+    </style>
 </head>
-<body style="text-align:center; font-family: Arial; background:#0f172a; color:white;">
+<body>
 
-<h2>🔐 Login to NetWatch</h2>
+<div class="card">
+    <h2>🔐 NetWatch Login</h2>
 
-<form method="POST">
-    <input type="text" name="username" placeholder="Username"><br><br>
-    <input type="password" name="password" placeholder="Password"><br><br>
-    <button type="submit">Login</button>
-</form>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for msg in messages %}
+                <div class="error">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/login">
+        <input
+            type="text"
+            name="username"
+            placeholder="Username"
+            maxlength="64"
+            autocomplete="username"
+            required
+        >
+        <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            maxlength="128"
+            autocomplete="current-password"
+            required
+        >
+        <button type="submit">Login</button>
+    </form>
+</div>
 
 </body>
 </html>

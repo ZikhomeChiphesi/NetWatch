@@ -1,9 +1,9 @@
 import smtplib
 from email.mime.text import MIMEText
 
-SENDER_EMAIL = "zikhomechip@gmail.com"
-APP_PASSWORD = "wvlmyyfvupjvihqx"  # remove spaces
-RECEIVER_EMAIL = "zikhomechip@gmail.com"  # FIXED
+SENDER_EMAIL = "YOUR_EMAIL@gmail.com"
+APP_PASSWORD = "YOUR_APP_PASSWORD"
+RECEIVER_EMAIL = "YOUR_EMAIL@gmail.com"
 
 
 def send_email_alert(device, score, reason):

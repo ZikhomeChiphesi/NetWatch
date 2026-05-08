@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime\
+from datetime import datetime
 
 DB_NAME = "netwatch.db"
 
@@ -8,7 +8,6 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
 
-    # Scan history
     c.execute("""
         CREATE TABLE IF NOT EXISTS scans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,7 +17,6 @@ def init_db():
         )
     """)
 
-    # Device logs
     c.execute("""
         CREATE TABLE IF NOT EXISTS device_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
