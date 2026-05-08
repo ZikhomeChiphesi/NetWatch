@@ -1,9 +1,15 @@
+import os
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
 network_data = {}
 
+@app.route("/")
+def home():
+    return jsonify({
+        "status": "NetWatch API running"
+    })
 
 @app.route("/upload", methods=["POST"])
 def upload_data():
@@ -21,7 +27,5 @@ def get_devices():
 
 
 if __name__ == "__main__":
-    import os
-
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)

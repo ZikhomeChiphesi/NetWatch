@@ -3,7 +3,7 @@ from network_scanner import scan_network, load_baseline, save_baseline
 from alerts import detect_new_devices
 
 TARGET_NETWORK = "192.168.1.1/24"
-SCAN_INTERVAL = 10  # seconds
+SCAN_INTERVAL = 10
 
 
 def run_live_monitor():

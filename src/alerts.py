@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 
 ALERT_LOG = "logs/alerts.log"
