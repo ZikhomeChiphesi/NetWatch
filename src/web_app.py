@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO
 import requests
-from src.network_scanner import load_baseline
+from network_scanner import load_baseline
 from threat_engine import analyze_device
 from anomaly_ai import AnomalyEngine
 
@@ -46,7 +46,7 @@ def dashboard():
 
     # Fetch network data from API server
     try:
-        response = requests.get(f"{API_URL}/devices")
+        response = requests.get(API_URL)
         data = response.json() if response.status_code == 200 else {}
     except:
         data = {}
@@ -121,5 +121,5 @@ def handle_connect():
 # START APP
 # =========================
 if __name__ == "__main__":
-    socketio.start_background_task(stream_data)
-    socketio.run(app, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    socketio.run(app, host="0.0.0.0", port=port)
