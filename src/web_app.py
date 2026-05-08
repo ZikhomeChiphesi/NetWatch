@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO
 import requests
@@ -9,7 +10,10 @@ from database import init_db, log_scan, log_devices
 
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:5001")
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder="../templates"
+)
 app.secret_key = "netwatch_secret_key"
 
 socketio = SocketIO(app)
