@@ -10,7 +10,7 @@ from flask import Flask, request, jsonify
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("../.env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
@@ -24,7 +24,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # DB
 # =========================
 def get_db():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 
 # =========================
