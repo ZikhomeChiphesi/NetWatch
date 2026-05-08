@@ -1,5 +1,5 @@
 import math
-from src.network_scanner import load_baseline
+from network_scanner import load_baseline
 
 class AnomalyEngine:
     def __init__(self):
