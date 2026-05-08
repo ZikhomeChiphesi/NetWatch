@@ -5,3 +5,4 @@ rich
 scapy
 jinja2
 requests
+psycopg2-binary
