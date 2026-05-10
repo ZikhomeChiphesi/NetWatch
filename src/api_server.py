@@ -2,6 +2,7 @@ import os
 import functools
 import uuid
 import secrets
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -12,6 +13,9 @@ from dotenv import load_dotenv
 
 load_dotenv("../.env")
 
+# =========================
+# APP
+# =========================
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
 
@@ -124,7 +128,29 @@ def register_agent():
 
 
 # =========================
-# HEARTBEAT ENDPOINT
+# RISK SCORING ENGINE (INTELLIGENCE CORE)
+# =========================
+def calculate_risk(device):
+    score = 0
+
+    level = device.get("level", "LOW")
+
+    if level == "HIGH":
+        score += 60
+    elif level == "MEDIUM":
+        score += 30
+    else:
+        score += 10
+
+    mac = device.get("mac", "")
+    if mac and len(mac.split(":")) < 6:
+        score += 20
+
+    return min(score, 100)
+
+
+# =========================
+# HEARTBEAT
 # =========================
 @app.route("/heartbeat", methods=["POST"])
 @require_api_key
@@ -142,13 +168,6 @@ def heartbeat():
 
     agent_id = row[0]
 
-    # update heartbeat table
-    cur.execute("""
-        INSERT INTO heartbeats (agent_id)
-        VALUES (%s)
-    """, (agent_id,))
-
-    # update last_seen
     cur.execute("""
         UPDATE agents
         SET last_seen = NOW()
@@ -159,11 +178,16 @@ def heartbeat():
     cur.close()
     conn.close()
 
+    socketio.emit("agent_status", {
+        "agent_id": agent_id,
+        "status": "online"
+    })
+
     return jsonify({"status": "alive"})
 
 
 # =========================
-# DEVICE UPLOAD
+# DEVICE UPLOAD + INTELLIGENCE
 # =========================
 @app.route("/upload", methods=["POST"])
 @require_api_key
@@ -177,6 +201,8 @@ def upload_data():
     cur = conn.cursor()
 
     for d in devices:
+        risk = calculate_risk(d)
+
         cur.execute("""
             INSERT INTO devices (network, ip, mac, level, score)
             VALUES (%s, %s, %s, %s, %s)
@@ -185,20 +211,64 @@ def upload_data():
             d.get("ip"),
             d.get("mac"),
             d.get("level", "LOW"),
-            d.get("score", 0)
+            risk
         ))
+
+        # 🚨 REAL-TIME ALERT
+        if risk >= 70:
+            socketio.emit("security_alert", {
+                "type": "HIGH_RISK_DEVICE",
+                "ip": d.get("ip"),
+                "score": risk
+            })
 
     conn.commit()
     cur.close()
     conn.close()
 
-    socketio.emit("update", {"network": network})
+    socketio.emit("device_update", {"network": network})
 
     return jsonify({"status": "stored"})
 
 
 # =========================
-# GET AGENTS WITH STATUS
+# INTELLIGENCE API
+# =========================
+@app.route("/intelligence", methods=["GET"])
+def intelligence():
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT ip, mac, level, score
+        FROM devices
+        ORDER BY score DESC
+        LIMIT 20
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    high_risk = [r for r in rows if r[3] >= 70]
+
+    return jsonify({
+        "high_risk_count": len(high_risk),
+        "top_risks": [
+            {
+                "ip": r[0],
+                "mac": r[1],
+                "level": r[2],
+                "score": r[3]
+            }
+            for r in high_risk
+        ]
+    })
+
+
+# =========================
+# AGENTS
 # =========================
 @app.route("/agents", methods=["GET"])
 def get_agents():
@@ -218,9 +288,7 @@ def get_agents():
 
     for r in rows:
         last_seen = r[2]
-
-        # offline if > 30 seconds old
-        status = "ONLINE" if (now - last_seen) < timedelta(seconds=30) else "OFFLINE"
+        status = "online" if (now - last_seen) < timedelta(seconds=30) else "offline"
 
         agents.append({
             "agent_id": r[0],
@@ -272,11 +340,9 @@ def get_devices():
 if __name__ == "__main__":
     init_tables()
 
-    port = int(os.environ.get("PORT", 10000))
-
     socketio.run(
         app,
         host="0.0.0.0",
-        port=port,
+        port=int(os.environ.get("PORT", 5000)),
         debug=False
     )
