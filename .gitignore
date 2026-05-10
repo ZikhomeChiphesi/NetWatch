@@ -205,3 +205,31 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# =========================
+# NETWATCH SPECIFIC
+# =========================
+
+# Agent secrets (VERY IMPORTANT)
+agent_key.txt
+
+# Flask local runtime
+instance/
+
+# React frontend build output
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Vite cache
+frontend/.vite
+
+# Logs from Node
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS junk (extra safety)
+.DS_Store
+Thumbs.db
