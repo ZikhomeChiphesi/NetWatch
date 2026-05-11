@@ -10,35 +10,16 @@ import Topology from "./pages/Topology";
 function App() {
   return (
     <BrowserRouter>
-
       <MainLayout>
-
         <Routes>
 
-          <Route
-            path="/"
-            element={<Dashboard />}
-          />
-
-          <Route
-            path="/agents"
-            element={<Agents />}
-          />
-
-          <Route
-            path="/intelligence"
-            element={<Intelligence />}
-          />
-
-          <Route
-            path="/topology"
-            element={<Topology />}
-          />
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/intelligence" element={<Intelligence />} />
+          <Route path="/topology" element={<Topology />} />
 
         </Routes>
-
       </MainLayout>
-
     </BrowserRouter>
   );
 }

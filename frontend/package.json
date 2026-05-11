@@ -16,7 +16,8 @@
     "react-force-graph": "^1.48.2",
     "react-force-graph-2d": "^1.29.1",
     "react-router-dom": "^7.15.0",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
