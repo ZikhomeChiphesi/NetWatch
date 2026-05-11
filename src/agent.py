@@ -1,79 +1,156 @@
 import os
 import time
 import requests
+
 from network_scanner import scan_network
 
-API_URL = "https://netwatch-api-02.onrender.com"
+# =========================
+# CONFIG
+# =========================
+API_URL = "http://127.0.0.1:5000"
+
 NETWORK_NAME = "Home_Network"
 
 KEY_FILE = "agent_key.txt"
 
+SCAN_RANGE = "192.168.1.0/24"
+
 
 # =========================
-# REGISTER OR LOAD
+# REGISTER / LOAD API KEY
 # =========================
 def get_or_register():
+
+    # LOAD EXISTING KEY
     if os.path.exists(KEY_FILE):
+
         with open(KEY_FILE, "r") as f:
-            return f.read().strip()
 
-    res = requests.post(f"{API_URL}/register", json={
-        "network": NETWORK_NAME
-    })
+            key = f.read().strip()
 
-    data = res.json()
+            print("[INFO] Loaded existing API key")
 
-    key = data["api_key"]
+            return key
 
-    with open(KEY_FILE, "w") as f:
-        f.write(key)
+    # REGISTER NEW AGENT
+    print("[INFO] Registering new agent...")
 
-    print("Registered agent:", data["agent_id"])
-    return key
+    try:
+
+        res = requests.post(
+            f"{API_URL}/register",
+            json={
+                "network": NETWORK_NAME
+            },
+            timeout=10
+        )
+
+        data = res.json()
+
+        key = data["api_key"]
+
+        with open(KEY_FILE, "w") as f:
+            f.write(key)
+
+        print("[SUCCESS] Registered agent")
+        print("[AGENT ID]", data["agent_id"])
+
+        return key
+
+    except Exception as e:
+
+        print("[ERROR] Registration failed:", e)
+
+        return None
 
 
 # =========================
 # HEARTBEAT
 # =========================
 def send_heartbeat(api_key):
+
     try:
+
         requests.post(
             f"{API_URL}/heartbeat",
-            headers={"X-API-Key": api_key}
+            headers={
+                "X-API-Key": api_key
+            },
+            timeout=5
         )
-    except:
-        pass
+
+        print("[HEARTBEAT] alive")
+
+    except Exception as e:
+
+        print("[ERROR] Heartbeat failed:", e)
 
 
 # =========================
 # MAIN LOOP
 # =========================
 def run_agent():
+
     api_key = get_or_register()
 
-    while True:
-        devices = scan_network("192.168.1.1/24")
+    if not api_key:
 
-        payload = {
-            "network": NETWORK_NAME,
-            "devices": devices,
-            "timestamp": time.time()
-        }
+        print("[FATAL] No API key available")
+
+        return
+
+    print("[INFO] Agent started")
+    print("[INFO] Scanning range:", SCAN_RANGE)
+
+    while True:
 
         try:
-            requests.post(
+
+            print("\n[SCAN] Scanning network...")
+
+            start = time.time()
+
+            devices = scan_network(SCAN_RANGE)
+
+            duration = round(time.time() - start, 2)
+
+            print(f"[SCAN COMPLETE] {len(devices)} devices found")
+            print(f"[TIME] {duration}s")
+
+            payload = {
+                "network": NETWORK_NAME,
+                "devices": devices,
+                "timestamp": time.time()
+            }
+
+            print("[UPLOAD] Sending data to backend...")
+
+            res = requests.post(
                 f"{API_URL}/upload",
                 json=payload,
-                headers={"X-API-Key": api_key}
+                headers={
+                    "X-API-Key": api_key
+                },
+                timeout=10
             )
-        except Exception as e:
-            print("Upload failed:", e)
 
-        # 🫀 HEARTBEAT EVERY LOOP
-        send_heartbeat(api_key)
+            print("[UPLOAD SUCCESS]", res.status_code)
+
+            # HEARTBEAT
+            send_heartbeat(api_key)
+
+        except Exception as e:
+
+            print("[ERROR]", e)
+
+        print("[SLEEP] Waiting 10 seconds...\n")
 
         time.sleep(10)
 
 
+# =========================
+# START
+# =========================
 if __name__ == "__main__":
+
     run_agent()
