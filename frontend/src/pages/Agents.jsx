@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import API from "../services/api";
+import { API } from "../api/client";
+import { io } from "socket.io-client";
+
+const socket = io("http://localhost:5000");
 
 function Agents() {
 
@@ -8,15 +11,33 @@ function Agents() {
   // =========================
   // FETCH AGENTS
   // =========================
+  const loadAgents = async () => {
+    try {
+      const res = await API.get("/agents");
+      setAgents(res.data);
+    } catch (err) {
+      console.error("Agent fetch error:", err);
+    }
+  };
+
+  // =========================
+  // LIVE UPDATES
+  // =========================
   useEffect(() => {
 
-    API.get("/agents")
-      .then((res) => {
-        setAgents(res.data);
-      })
-      .catch((err) => {
-        console.error(err);
-      });
+    loadAgents();
+
+    const interval = setInterval(loadAgents, 5000);
+
+    // REAL-TIME SOCKET EVENTS
+    socket.on("agent_update", () => {
+      loadAgents();
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
 
   }, []);
 
@@ -25,13 +46,15 @@ function Agents() {
 
       {/* HEADER */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">
+
+        <h1 className="text-3xl font-bold text-white">
           Agents
         </h1>
 
         <p className="text-slate-400 text-sm mt-1">
-          Live monitoring agents connected to NetWatch
+          Live security agents monitoring network activity
         </p>
+
       </div>
 
       {/* AGENT LIST */}
@@ -47,53 +70,52 @@ function Agents() {
               backdrop-blur-md
               rounded-xl
               p-5
+              flex justify-between items-center
             "
           >
 
-            <div className="flex justify-between items-center">
+            {/* LEFT */}
+            <div>
 
-              {/* LEFT */}
-              <div>
+              <h2 className="text-lg font-semibold text-white">
+                {agent.agent_id}
+              </h2>
 
-                <h2 className="text-lg font-semibold">
-                  {agent.agent_id}
-                </h2>
+              <p className="text-slate-400 text-sm">
+                Network: {agent.network}
+              </p>
 
-                <p className="text-slate-400 text-sm">
-                  {agent.network}
-                </p>
+              <p className="text-slate-500 text-xs mt-1">
+                Last Seen: {agent.last_seen}
+              </p>
 
-                <p className="text-slate-500 text-xs mt-1">
-                  Last Seen: {agent.last_seen}
-                </p>
+            </div>
 
-              </div>
+            {/* RIGHT - STATUS */}
+            <div className="flex items-center gap-2">
 
-              {/* RIGHT */}
-              <div className="flex items-center gap-2">
-
-                <div
-                  className={`
-                    w-2 h-2 rounded-full
-                    ${
-                      agent.status === "online"
-                        ? "bg-green-400 animate-pulse"
-                        : "bg-red-400"
-                    }
-                  `}
-                />
-
-                <span
-                  className={
+              {/* STATUS DOT */}
+              <div
+                className={`
+                  w-2.5 h-2.5 rounded-full
+                  ${
                     agent.status === "online"
-                      ? "text-green-400"
-                      : "text-red-400"
+                      ? "bg-green-400 animate-pulse"
+                      : "bg-red-400"
                   }
-                >
-                  {agent.status}
-                </span>
+                `}
+              />
 
-              </div>
+              {/* STATUS TEXT */}
+              <span
+                className={
+                  agent.status === "online"
+                    ? "text-green-400 font-medium"
+                    : "text-red-400 font-medium"
+                }
+              >
+                {agent.status.toUpperCase()}
+              </span>
 
             </div>
 
