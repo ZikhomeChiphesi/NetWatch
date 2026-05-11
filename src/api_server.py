@@ -2,7 +2,6 @@ import os
 import functools
 import uuid
 import secrets
-import threading
 import time
 from datetime import datetime, timedelta
 
@@ -32,6 +31,15 @@ def get_db():
 
 
 # =========================
+# SYSTEM STATE (AI BASELINE)
+# =========================
+SYSTEM_STATE = {
+    "device_counts": [],
+    "risk_scores": []
+}
+
+
+# =========================
 # INIT TABLES
 # =========================
 def init_tables():
@@ -57,14 +65,6 @@ def init_tables():
             api_key TEXT,
             network TEXT,
             last_seen TIMESTAMP DEFAULT NOW()
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS heartbeats (
-            id SERIAL PRIMARY KEY,
-            agent_id TEXT,
-            timestamp TIMESTAMP DEFAULT NOW()
         )
     """)
 
@@ -128,7 +128,7 @@ def register_agent():
 
 
 # =========================
-# RISK SCORING ENGINE (INTELLIGENCE CORE)
+# RISK ENGINE
 # =========================
 def calculate_risk(device):
     score = 0
@@ -187,7 +187,7 @@ def heartbeat():
 
 
 # =========================
-# DEVICE UPLOAD + INTELLIGENCE
+# DEVICE UPLOAD + AI LEARNING
 # =========================
 @app.route("/upload", methods=["POST"])
 @require_api_key
@@ -200,8 +200,11 @@ def upload_data():
     conn = get_db()
     cur = conn.cursor()
 
+    total_risk = 0
+
     for d in devices:
         risk = calculate_risk(d)
+        total_risk += risk
 
         cur.execute("""
             INSERT INTO devices (network, ip, mac, level, score)
@@ -214,17 +217,21 @@ def upload_data():
             risk
         ))
 
-        # 🚨 REAL-TIME ALERT
-        if risk >= 70:
-            socketio.emit("security_alert", {
-                "type": "HIGH_RISK_DEVICE",
-                "ip": d.get("ip"),
-                "score": risk
-            })
-
     conn.commit()
     cur.close()
     conn.close()
+
+    # =========================
+    # UPDATE AI BASELINE
+    # =========================
+    SYSTEM_STATE["device_counts"].append(len(devices))
+    SYSTEM_STATE["risk_scores"].append(total_risk)
+
+    if len(SYSTEM_STATE["device_counts"]) > 50:
+        SYSTEM_STATE["device_counts"].pop(0)
+
+    if len(SYSTEM_STATE["risk_scores"]) > 50:
+        SYSTEM_STATE["risk_scores"].pop(0)
 
     socketio.emit("device_update", {"network": network})
 
@@ -232,7 +239,28 @@ def upload_data():
 
 
 # =========================
-# INTELLIGENCE API
+# ANOMALY DETECTION ENGINE
+# =========================
+def detect_anomalies(current_devices, current_risk):
+
+    anomalies = []
+
+    avg_devices = sum(SYSTEM_STATE["device_counts"][-10:] or [0]) / max(len(SYSTEM_STATE["device_counts"][-10:]), 1)
+    avg_risk = sum(SYSTEM_STATE["risk_scores"][-10:] or [0]) / max(len(SYSTEM_STATE["risk_scores"][-10:]), 1)
+
+    # device spike
+    if avg_devices > 0 and current_devices > avg_devices * 1.8:
+        anomalies.append("DEVICE_SPIKE_DETECTED")
+
+    # risk spike
+    if avg_risk > 0 and current_risk > avg_risk * 1.5:
+        anomalies.append("RISK_BEHAVIOR_SHIFT")
+
+    return anomalies
+
+
+# =========================
+# INTELLIGENCE ENDPOINT
 # =========================
 @app.route("/intelligence", methods=["GET"])
 def intelligence():
@@ -240,10 +268,10 @@ def intelligence():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT ip, mac, level, score
+        SELECT score
         FROM devices
-        ORDER BY score DESC
-        LIMIT 20
+        ORDER BY timestamp DESC
+        LIMIT 50
     """)
 
     rows = cur.fetchall()
@@ -251,19 +279,17 @@ def intelligence():
     cur.close()
     conn.close()
 
-    high_risk = [r for r in rows if r[3] >= 70]
+    scores = [r[0] for r in rows]
+    avg_risk = sum(scores) / len(scores) if scores else 0
+
+    current_devices = len(scores)
+
+    anomalies = detect_anomalies(current_devices, avg_risk)
 
     return jsonify({
-        "high_risk_count": len(high_risk),
-        "top_risks": [
-            {
-                "ip": r[0],
-                "mac": r[1],
-                "level": r[2],
-                "score": r[3]
-            }
-            for r in high_risk
-        ]
+        "device_count": current_devices,
+        "avg_risk": avg_risk,
+        "anomalies": anomalies
     })
 
 
@@ -301,37 +327,6 @@ def get_agents():
     conn.close()
 
     return jsonify(agents)
-
-
-# =========================
-# DEVICES
-# =========================
-@app.route("/devices", methods=["GET"])
-def get_devices():
-    conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT ip, mac, level, score
-        FROM devices
-        ORDER BY timestamp DESC
-        LIMIT 200
-    """)
-
-    rows = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return jsonify([
-        {
-            "ip": r[0],
-            "mac": r[1],
-            "level": r[2],
-            "score": r[3]
-        }
-        for r in rows
-    ])
 
 
 # =========================
