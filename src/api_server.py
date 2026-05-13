@@ -14,10 +14,10 @@ from threat_engine import analyze_device
 load_dotenv("../.env")
 
 # =========================
-# APP SETUP
+# APP
 # =========================
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "netwatch_dev_key")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "netwatch_dev")
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -25,32 +25,63 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 # =========================
-# DB CONNECTION
+# DB
 # =========================
 def get_db():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 
 # =========================
+# MAC VENDOR LOOKUP
+# =========================
+def get_vendor(mac):
+
+    if not mac:
+        return "Unknown"
+
+    prefixes = {
+        "00:1A": "Cisco",
+        "3C:52": "Apple",
+        "B8:27": "Raspberry Pi",
+        "FC:FB": "Samsung",
+        "D8:3A": "Intel",
+        "A4:5E": "Google"
+    }
+
+    for prefix, vendor in prefixes.items():
+        if mac.upper().startswith(prefix):
+            return vendor
+
+    return "Unknown Vendor"
+
+
+# =========================
 # INIT TABLES
 # =========================
 def init_tables():
+
     conn = get_db()
     cur = conn.cursor()
 
+    # ---------------------
+    # DEVICES
+    # ---------------------
     cur.execute("""
         CREATE TABLE IF NOT EXISTS devices (
             id SERIAL PRIMARY KEY,
             network TEXT,
             ip TEXT,
             mac TEXT,
+            vendor TEXT,
             level TEXT,
             score INTEGER,
-            is_new BOOLEAN DEFAULT FALSE,
             timestamp TIMESTAMP DEFAULT NOW()
         )
     """)
 
+    # ---------------------
+    # AGENTS
+    # ---------------------
     cur.execute("""
         CREATE TABLE IF NOT EXISTS agents (
             id SERIAL PRIMARY KEY,
@@ -61,11 +92,31 @@ def init_tables():
         )
     """)
 
+    # ---------------------
+    # HEARTBEATS
+    # ---------------------
     cur.execute("""
         CREATE TABLE IF NOT EXISTS heartbeats (
             id SERIAL PRIMARY KEY,
             agent_id TEXT,
             timestamp TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # ---------------------
+    # DEVICE PROFILES
+    # ---------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS device_profiles (
+            id SERIAL PRIMARY KEY,
+            mac TEXT UNIQUE,
+            vendor TEXT,
+            trust_score INTEGER DEFAULT 50,
+            threat_count INTEGER DEFAULT 0,
+            times_seen INTEGER DEFAULT 1,
+            reputation TEXT DEFAULT 'UNKNOWN',
+            first_seen TIMESTAMP DEFAULT NOW(),
+            last_seen TIMESTAMP DEFAULT NOW()
         )
     """)
 
@@ -75,17 +126,23 @@ def init_tables():
 
 
 # =========================
-# AUTH MIDDLEWARE
+# AUTH
 # =========================
 def require_api_key(f):
+
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
+
         key = request.headers.get("X-API-Key", "")
 
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("SELECT agent_id FROM agents WHERE api_key = %s", (key,))
+        cur.execute(
+            "SELECT agent_id FROM agents WHERE api_key = %s",
+            (key,)
+        )
+
         result = cur.fetchone()
 
         cur.close()
@@ -104,6 +161,7 @@ def require_api_key(f):
 # =========================
 @app.route("/register", methods=["POST"])
 def register_agent():
+
     data = request.json or {}
     network = data.get("network", "unknown")
 
@@ -114,7 +172,11 @@ def register_agent():
     cur = conn.cursor()
 
     cur.execute("""
-        INSERT INTO agents (agent_id, api_key, network)
+        INSERT INTO agents (
+            agent_id,
+            api_key,
+            network
+        )
         VALUES (%s, %s, %s)
     """, (agent_id, api_key, network))
 
@@ -134,12 +196,17 @@ def register_agent():
 @app.route("/heartbeat", methods=["POST"])
 @require_api_key
 def heartbeat():
+
     key = request.headers.get("X-API-Key")
 
     conn = get_db()
     cur = conn.cursor()
 
-    cur.execute("SELECT agent_id FROM agents WHERE api_key = %s", (key,))
+    cur.execute(
+        "SELECT agent_id FROM agents WHERE api_key = %s",
+        (key,)
+    )
+
     row = cur.fetchone()
 
     if not row:
@@ -171,13 +238,103 @@ def heartbeat():
 
 
 # =========================
-# DEVICE UPLOAD + PHASE 9 INTELLIGENCE
+# DEVICE MEMORY ENGINE
+# =========================
+def update_device_profile(cur, mac, vendor, score):
+
+    cur.execute("""
+        SELECT trust_score, threat_count, times_seen
+        FROM device_profiles
+        WHERE mac = %s
+    """, (mac,))
+
+    existing = cur.fetchone()
+
+    # ---------------------
+    # NEW DEVICE
+    # ---------------------
+    if not existing:
+
+        reputation = "SUSPICIOUS" if score >= 70 else "UNKNOWN"
+
+        trust_score = max(5, 100 - score)
+
+        cur.execute("""
+            INSERT INTO device_profiles (
+                mac,
+                vendor,
+                trust_score,
+                threat_count,
+                times_seen,
+                reputation
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            mac,
+            vendor,
+            trust_score,
+            1 if score >= 70 else 0,
+            1,
+            reputation
+        ))
+
+        return
+
+    # ---------------------
+    # EXISTING DEVICE
+    # ---------------------
+    trust_score, threat_count, times_seen = existing
+
+    times_seen += 1
+
+    if score >= 70:
+        threat_count += 1
+        trust_score -= 10
+    else:
+        trust_score += 1
+
+    trust_score = max(0, min(100, trust_score))
+
+    # reputation logic
+    if trust_score >= 80:
+        reputation = "TRUSTED"
+
+    elif trust_score >= 50:
+        reputation = "NORMAL"
+
+    elif trust_score >= 25:
+        reputation = "SUSPICIOUS"
+
+    else:
+        reputation = "DANGEROUS"
+
+    cur.execute("""
+        UPDATE device_profiles
+        SET
+            trust_score = %s,
+            threat_count = %s,
+            times_seen = %s,
+            reputation = %s,
+            last_seen = NOW()
+        WHERE mac = %s
+    """, (
+        trust_score,
+        threat_count,
+        times_seen,
+        reputation,
+        mac
+    ))
+
+
+# =========================
+# DEVICE UPLOAD
 # =========================
 @app.route("/upload", methods=["POST"])
 @require_api_key
 def upload_data():
 
     data = request.json or {}
+
     network = data.get("network", "unknown")
     devices = data.get("devices", [])
 
@@ -188,25 +345,44 @@ def upload_data():
 
         analyzed = analyze_device(d, devices)
 
+        vendor = get_vendor(analyzed["mac"])
+
+        # ---------------------
+        # STORE DEVICE EVENT
+        # ---------------------
         cur.execute("""
             INSERT INTO devices (
-                network, ip, mac, level, score, is_new
+                network,
+                ip,
+                mac,
+                vendor,
+                level,
+                score
             )
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             network,
             analyzed["ip"],
             analyzed["mac"],
+            vendor,
             analyzed["level"],
-            analyzed["score"],
-            analyzed.get("is_new", False)
+            analyzed["score"]
         ))
+
+        # ---------------------
+        # UPDATE REPUTATION MEMORY
+        # ---------------------
+        update_device_profile(
+            cur,
+            analyzed["mac"],
+            vendor,
+            analyzed["score"]
+        )
 
     conn.commit()
     cur.close()
     conn.close()
 
-    # real-time push
     socketio.emit("device_update", {
         "network": network
     })
@@ -229,6 +405,7 @@ def get_agents():
     """)
 
     rows = cur.fetchall()
+
     now = datetime.utcnow()
 
     agents = []
@@ -236,7 +413,12 @@ def get_agents():
     for r in rows:
 
         last_seen = r[2]
-        status = "ONLINE" if (now - last_seen) < timedelta(seconds=30) else "OFFLINE"
+
+        status = (
+            "ONLINE"
+            if (now - last_seen) < timedelta(seconds=30)
+            else "OFFLINE"
+        )
 
         agents.append({
             "agent_id": r[0],
@@ -252,19 +434,26 @@ def get_agents():
 
 
 # =========================
-# DEVICES
+# DEVICE PROFILES
 # =========================
-@app.route("/devices", methods=["GET"])
-def get_devices():
+@app.route("/profiles", methods=["GET"])
+def get_profiles():
 
     conn = get_db()
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT ip, mac, level, score, is_new
-        FROM devices
-        ORDER BY timestamp DESC
-        LIMIT 200
+        SELECT
+            mac,
+            vendor,
+            trust_score,
+            threat_count,
+            times_seen,
+            reputation,
+            first_seen,
+            last_seen
+        FROM device_profiles
+        ORDER BY trust_score ASC
     """)
 
     rows = cur.fetchall()
@@ -272,20 +461,25 @@ def get_devices():
     cur.close()
     conn.close()
 
-    return jsonify([
-        {
-            "ip": r[0],
-            "mac": r[1],
-            "level": r[2],
-            "score": r[3],
-            "is_new": r[4]
-        }
-        for r in rows
-    ])
+    profiles = []
+
+    for r in rows:
+        profiles.append({
+            "mac": r[0],
+            "vendor": r[1],
+            "trust_score": r[2],
+            "threat_count": r[3],
+            "times_seen": r[4],
+            "reputation": r[5],
+            "first_seen": str(r[6]),
+            "last_seen": str(r[7])
+        })
+
+    return jsonify(profiles)
 
 
 # =========================
-# INTELLIGENCE ENDPOINT (FOR REACT DASHBOARD)
+# INTELLIGENCE
 # =========================
 @app.route("/intelligence", methods=["GET"])
 def intelligence():
@@ -299,18 +493,22 @@ def intelligence():
     cur.execute("SELECT AVG(score) FROM devices")
     avg_risk = cur.fetchone()[0] or 0
 
-    cur.execute("SELECT COUNT(*) FROM devices WHERE level = 'HIGH'")
-    high_threats = cur.fetchone()[0]
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM device_profiles
+        WHERE reputation = 'DANGEROUS'
+    """)
+
+    dangerous_devices = cur.fetchone()[0]
 
     cur.execute("""
-        SELECT ip, mac, score
-        FROM devices
-        WHERE is_new = TRUE
-        ORDER BY timestamp DESC
+        SELECT mac, trust_score, reputation
+        FROM device_profiles
+        ORDER BY trust_score ASC
         LIMIT 10
     """)
 
-    anomalies = cur.fetchall()
+    risky = cur.fetchall()
 
     cur.close()
     conn.close()
@@ -318,34 +516,41 @@ def intelligence():
     return jsonify({
         "device_count": device_count,
         "avg_risk": float(avg_risk),
-        "high_threats": high_threats,
-        "anomalies": [
-            {"ip": a[0], "mac": a[1], "score": a[2]}
-            for a in anomalies
+        "dangerous_devices": dangerous_devices,
+        "risky_devices": [
+            {
+                "mac": r[0],
+                "trust_score": r[1],
+                "reputation": r[2]
+            }
+            for r in risky
         ]
     })
 
 
 # =========================
-# HEALTH CHECK
+# HEALTH
 # =========================
-@app.route("/", methods=["GET"])
+@app.route("/")
 def home():
+
     return jsonify({
-        "status": "NetWatch Phase 9 Backend Running",
+        "status": "NetWatch Threat Intelligence Active",
+        "phase": "9.3",
         "features": [
-            "device intelligence",
-            "anomaly scoring",
-            "real-time sockets",
-            "agent tracking"
+            "device memory",
+            "reputation engine",
+            "threat scoring",
+            "persistent profiles"
         ]
     })
 
 
 # =========================
-# START SERVER
+# START
 # =========================
 if __name__ == "__main__":
+
     init_tables()
 
     port = int(os.environ.get("PORT", 5000))
