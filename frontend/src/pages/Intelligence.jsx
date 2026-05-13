@@ -6,24 +6,15 @@ function Intelligence() {
   const [intel, setIntel] = useState(null);
 
   // =========================
-  // LOAD INTELLIGENCE
+  // LOAD
   // =========================
-  const loadIntel = async () => {
-    try {
-      const res = await API.get("/intelligence");
-      setIntel(res.data);
-    } catch (err) {
-      console.error("Intel fetch failed:", err);
-    }
-  };
-
   useEffect(() => {
 
-    loadIntel();
-
-    const interval = setInterval(loadIntel, 5000);
-
-    return () => clearInterval(interval);
+    API.get("/intelligence")
+      .then((res) => {
+        setIntel(res.data);
+      })
+      .catch(console.error);
 
   }, []);
 
@@ -31,103 +22,115 @@ function Intelligence() {
     <div>
 
       {/* HEADER */}
-      <div className="mb-6">
+      <div className="mb-8">
 
-        <h1 className="text-3xl font-bold text-white">
-          Intelligence Center
+        <h1 className="text-4xl font-bold text-white">
+          Threat Intelligence
         </h1>
 
-        <p className="text-slate-400 text-sm mt-1">
-          Threat detection, anomaly scoring & network insights
+        <p className="text-slate-400 mt-2">
+          Reputation analysis and network anomaly monitoring
         </p>
 
       </div>
 
-      {/* =========================
-          SUMMARY CARDS
-      ========================= */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* OVERVIEW */}
+      <div className="grid grid-cols-3 gap-6 mb-8">
 
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-          <p className="text-slate-400 text-sm">Device Count</p>
-          <p className="text-3xl font-bold text-cyan-400">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <p className="text-slate-400 text-sm">
+            Average Risk
+          </p>
+
+          <h2 className="text-4xl font-bold mt-2 text-yellow-400">
+            {intel?.avg_risk?.toFixed(1) || 0}
+          </h2>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <p className="text-slate-400 text-sm">
+            Dangerous Devices
+          </p>
+
+          <h2 className="text-4xl font-bold mt-2 text-red-400">
+            {intel?.dangerous_devices || 0}
+          </h2>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <p className="text-slate-400 text-sm">
+            Devices Monitored
+          </p>
+
+          <h2 className="text-4xl font-bold mt-2 text-cyan-400">
             {intel?.device_count || 0}
-          </p>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-          <p className="text-slate-400 text-sm">Average Risk</p>
-          <p className="text-3xl font-bold text-yellow-400">
-            {intel?.avg_risk?.toFixed(2) || 0}
-          </p>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-          <p className="text-slate-400 text-sm">Active Threats</p>
-          <p className="text-3xl font-bold text-red-400">
-            {intel?.anomalies?.length || 0}
-          </p>
+          </h2>
         </div>
 
       </div>
 
-      {/* =========================
-          THREAT PANEL
-      ========================= */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+      {/* RISK TABLE */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
 
-        <h2 className="text-xl font-semibold text-white mb-4">
-          Threat Intelligence Feed
-        </h2>
+        <div className="p-5 border-b border-white/10">
 
-        {!intel?.anomalies?.length ? (
-          <p className="text-slate-400">
-            System stable — no anomalies detected
-          </p>
-        ) : (
-          <div className="space-y-3">
+          <h2 className="text-xl text-white">
+            Suspicious Devices
+          </h2>
 
-            {intel.anomalies.map((a, i) => (
+        </div>
 
-              <div
+        <table className="w-full">
+
+          <thead className="bg-white/5">
+
+            <tr className="text-left text-slate-400 text-sm">
+
+              <th className="p-4">MAC</th>
+              <th className="p-4">Trust Score</th>
+              <th className="p-4">Reputation</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {intel?.risky_devices?.map((d, i) => (
+
+              <tr
                 key={i}
-                className="
-                  bg-red-500/10
-                  border border-red-500/20
-                  rounded-lg
-                  p-3
-                "
+                className="border-t border-white/5"
               >
 
-                <p className="text-red-300 text-sm">
-                  ⚠ {a}
-                </p>
+                <td className="p-4 font-mono text-sm">
+                  {d.mac}
+                </td>
 
-              </div>
+                <td className="p-4 text-red-400">
+                  {d.trust_score}
+                </td>
+
+                <td className="p-4">
+
+                  <span className="
+                    px-3 py-1 rounded-full
+                    bg-red-500/20
+                    text-red-400
+                    text-sm
+                  ">
+                    {d.reputation}
+                  </span>
+
+                </td>
+
+              </tr>
 
             ))}
 
-          </div>
-        )}
+          </tbody>
 
-      </div>
-
-      {/* =========================
-          INTELLIGENCE NOTES
-      ========================= */}
-      <div className="mt-6 text-slate-400 text-sm">
-
-        <p>
-          • Risk score is derived from device anomalies and network changes
-        </p>
-
-        <p>
-          • Unknown devices significantly increase threat score
-        </p>
-
-        <p>
-          • System updates every 5 seconds from backend intelligence engine
-        </p>
+        </table>
 
       </div>
 
