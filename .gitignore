@@ -233,3 +233,8 @@ yarn-error.log*
 # OS junk (extra safety)
 .DS_Store
 Thumbs.db
+# NetWatch sensitive/backups
+.env.*
+*.backup
+*.old.txt
+src/agent_key.txt
