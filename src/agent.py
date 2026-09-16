@@ -7,43 +7,48 @@ from network_scanner import scan_network
 # =========================
 # CONFIG
 # =========================
+
 API_URL = "http://127.0.0.1:5000"
+
+ORG_ID = "UNZA-LOCAL"
 
 NETWORK_NAME = "Home_Network"
 
 KEY_FILE = "agent_key.txt"
 
-SCAN_RANGE = "192.168.1.0/24"
-
+SCAN_RANGE = "172.16.23.0/24"
 
 # =========================
 # REGISTER / LOAD API KEY
 # =========================
+
 def get_or_register():
 
-    # LOAD EXISTING KEY
+    # Load existing key
     if os.path.exists(KEY_FILE):
 
         with open(KEY_FILE, "r") as f:
-
             key = f.read().strip()
 
+        if key:
             print("[INFO] Loaded existing API key")
-
             return key
 
-    # REGISTER NEW AGENT
-    print("[INFO] Registering new agent...")
+    # Register new agent
+    print("[INFO] Registering agent...")
 
     try:
 
         res = requests.post(
             f"{API_URL}/register",
             json={
+                "org_id": ORG_ID,
                 "network": NETWORK_NAME
             },
             timeout=10
         )
+
+        res.raise_for_status()
 
         data = res.json()
 
@@ -52,8 +57,9 @@ def get_or_register():
         with open(KEY_FILE, "w") as f:
             f.write(key)
 
-        print("[SUCCESS] Registered agent")
+        print("[SUCCESS] Agent registered")
         print("[AGENT ID]", data["agent_id"])
+        print("[ORG ID]", data["org_id"])
 
         return key
 
@@ -65,21 +71,32 @@ def get_or_register():
 
 
 # =========================
+# AUTH HEADERS
+# =========================
+
+def auth_headers(api_key):
+
+    return {
+        "X-API-Key": api_key,
+        "X-ORG-ID": ORG_ID
+    }
+
+
+# =========================
 # HEARTBEAT
 # =========================
+
 def send_heartbeat(api_key):
 
     try:
 
-        requests.post(
+        res = requests.post(
             f"{API_URL}/heartbeat",
-            headers={
-                "X-API-Key": api_key
-            },
+            headers=auth_headers(api_key),
             timeout=5
         )
 
-        print("[HEARTBEAT] alive")
+        print("[HEARTBEAT]", res.status_code)
 
     except Exception as e:
 
@@ -89,6 +106,7 @@ def send_heartbeat(api_key):
 # =========================
 # MAIN LOOP
 # =========================
+
 def run_agent():
 
     api_key = get_or_register()
@@ -96,11 +114,11 @@ def run_agent():
     if not api_key:
 
         print("[FATAL] No API key available")
-
         return
 
     print("[INFO] Agent started")
-    print("[INFO] Scanning range:", SCAN_RANGE)
+    print("[INFO] Organization:", ORG_ID)
+    print("[INFO] Network:", SCAN_RANGE)
 
     while True:
 
@@ -128,15 +146,15 @@ def run_agent():
             res = requests.post(
                 f"{API_URL}/upload",
                 json=payload,
-                headers={
-                    "X-API-Key": api_key
-                },
+                headers=auth_headers(api_key),
                 timeout=10
             )
 
-            print("[UPLOAD SUCCESS]", res.status_code)
+            print("[UPLOAD]", res.status_code)
 
-            # HEARTBEAT
+            if res.status_code != 200:
+                print("[UPLOAD RESPONSE]", res.text)
+
             send_heartbeat(api_key)
 
         except Exception as e:
@@ -151,6 +169,6 @@ def run_agent():
 # =========================
 # START
 # =========================
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     run_agent()

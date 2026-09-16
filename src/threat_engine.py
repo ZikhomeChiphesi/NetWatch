@@ -68,7 +68,7 @@ def add_trusted_device(mac):
 # =========================
 # DEVICE ANALYSIS
 # =========================
-def analyze_device(device):
+def analyze_device(device, known_devices=None):
 
     mac = device.get("mac", "unknown")
     ip = device.get("ip", "unknown")
@@ -76,7 +76,12 @@ def analyze_device(device):
     score = 0
     reasons = []
 
-    trusted = is_trusted(mac)
+    if known_devices is not None:
+        known_macs = {d["mac"] for d in known_devices}
+        trusted = mac in known_macs
+    else:
+        trusted = is_trusted(mac)
+    ...
 
     # =========================
     # UNKNOWN DEVICE
@@ -136,7 +141,7 @@ def analyze_device(device):
         "ip": ip,
         "mac": mac,
         "score": score,
-        "severity": severity,
+        "level": severity,
         "confidence": confidence,
         "trusted": trusted,
         "suspicious": suspicious,

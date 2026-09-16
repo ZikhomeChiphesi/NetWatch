@@ -1,38 +1,42 @@
 import axios from "axios";
 
 // =========================
-// BASE BACKEND CONNECTION
+// BASE API
 // =========================
 const API = axios.create({
-  baseURL: "http://localhost:5000", // change to Render URL in production
+  baseURL: "http://localhost:5000",
   timeout: 10000
 });
 
 // =========================
-// OPTIONAL: REQUEST INTERCEPTOR
-// (future: auth tokens, org IDs, etc.)
+// AUTO ATTACH AUTH HEADERS
 // =========================
-API.interceptors.request.use(
-  (config) => {
-    // Example for future SaaS auth:
-    // config.headers["Authorization"] = "Bearer TOKEN"
+API.interceptors.request.use((config) => {
 
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+  const apiKey = localStorage.getItem("api_key");
+  const orgId = localStorage.getItem("org_id");
+
+  if (apiKey) {
+    config.headers["X-API-Key"] = apiKey;
   }
-);
+
+  if (orgId) {
+    config.headers["X-ORG-ID"] = orgId;
+  }
+
+  return config;
+});
 
 // =========================
-// OPTIONAL: RESPONSE HANDLING
+// GLOBAL ERROR HANDLING
 // =========================
 API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error("API Error:", error?.response?.data || error.message);
-    return Promise.reject(error);
+  (res) => res,
+  (err) => {
+    console.error("API Error:", err?.response?.data || err.message);
+    return Promise.reject(err);
   }
 );
 
 export { API };
+export default API;

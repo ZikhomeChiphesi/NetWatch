@@ -12,7 +12,6 @@ from flask import (
 
 from flask_socketio import SocketIO
 
-from network_scanner import load_baseline
 from threat_engine import analyze_device
 from anomaly_ai import AnomalyEngine
 
@@ -94,13 +93,11 @@ def dashboard():
     # -------------------------
     ai_result = ai_engine.score(devices)
 
-    known_devices = load_baseline()
-
     analyzed = []
 
     for d in devices:
         analyzed.append(
-            analyze_device(d, known_devices)
+            analyze_device(d)
         )
 
     return render_template(

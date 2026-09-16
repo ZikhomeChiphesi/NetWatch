@@ -1,10 +1,18 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 
-function MainLayout({ children }) {
+function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const logout = () => {
+    localStorage.removeItem("api_key");
+    navigate("/login");
+  };
 
   const navItem = (path, label) => {
-    const active = location.pathname === path;
+    const active =
+      location.pathname === path ||
+      (path !== "/" && location.pathname.startsWith(path));
 
     return (
       <Link
@@ -27,23 +35,31 @@ function MainLayout({ children }) {
       <aside className="w-64 border-r border-slate-800 p-6 bg-slate-900">
 
         <h1 className="text-2xl font-bold text-cyan-400 mb-8">
-          NetWatch
+          NetWatch SOC
         </h1>
 
         <nav className="space-y-2">
-
           {navItem("/", "Dashboard")}
           {navItem("/agents", "Agents")}
           {navItem("/intelligence", "Intelligence")}
           {navItem("/topology", "Topology")}
-
         </nav>
+
+        {/* AUTH */}
+        <div className="mt-10 pt-6 border-t border-slate-800">
+          <button
+            onClick={logout}
+            className="text-red-400 hover:text-red-300"
+          >
+            Logout
+          </button>
+        </div>
 
       </aside>
 
       {/* MAIN CONTENT */}
       <main className="flex-1 p-8">
-        {children}
+        <Outlet />
       </main>
 
     </div>

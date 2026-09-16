@@ -1,7 +1,7 @@
 import time
 from rich.console import Console
 from rich.table import Table
-from network_scanner import scan_network, load_baseline
+from network_scanner import scan_network
 from threat_engine import analyze_device
 from alerts import trigger_threat_alert
 from email_alerts import send_email_alert
@@ -20,7 +20,7 @@ def display_dashboard(devices, known_devices):
     table.add_column("SCORE")
 
     for d in devices:
-        result = analyze_device(d, known_devices)
+        result = analyze_device(d)
 
         if result["level"] == "HIGH":
             trigger_threat_alert(result, "High Risk Device Detected")
@@ -45,7 +45,6 @@ def run_dashboard():
     console.print("[bold green]Starting NetWatch Dashboard Mode...[/bold green]")
 
     while True:
-        known_devices = load_baseline()
         devices = scan_network(TARGET_NETWORK)
         display_dashboard(devices, known_devices)
 

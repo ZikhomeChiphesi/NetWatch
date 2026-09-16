@@ -26,12 +26,9 @@ function Dashboard() {
   // LOAD INTEL
   // =========================
   const loadIntel = async () => {
-
     try {
-
       const res = await API.get("/intelligence");
       setIntel(res.data);
-
     } catch (err) {
       console.error(err);
     }
@@ -57,7 +54,7 @@ function Dashboard() {
   }, []);
 
   // =========================
-  // MOCK TREND DATA
+  // TREND DATA (MOCK FOR NOW)
   // =========================
   const trendData = [
     { time: "1m", risk: 12 },
@@ -68,7 +65,7 @@ function Dashboard() {
   ];
 
   // =========================
-  // PIE
+  // PIE DATA (DEVICE REPUTATION)
   // =========================
   const pieData = [
     {
@@ -120,40 +117,28 @@ function Dashboard() {
       <div className="grid grid-cols-4 gap-6 mb-8">
 
         <div className="bg-white/5 border border-cyan-500/20 rounded-2xl p-6">
-          <p className="text-slate-400 text-sm">
-            Total Devices
-          </p>
-
+          <p className="text-slate-400 text-sm">Total Devices</p>
           <h2 className="text-4xl mt-2 font-bold text-cyan-400">
             {intel?.device_count || 0}
           </h2>
         </div>
 
         <div className="bg-white/5 border border-yellow-500/20 rounded-2xl p-6">
-          <p className="text-slate-400 text-sm">
-            Average Risk
-          </p>
-
+          <p className="text-slate-400 text-sm">Average Risk</p>
           <h2 className="text-4xl mt-2 font-bold text-yellow-400">
             {intel?.avg_risk?.toFixed(1) || 0}
           </h2>
         </div>
 
         <div className="bg-white/5 border border-red-500/20 rounded-2xl p-6">
-          <p className="text-slate-400 text-sm">
-            Dangerous Devices
-          </p>
-
+          <p className="text-slate-400 text-sm">Dangerous Devices</p>
           <h2 className="text-4xl mt-2 font-bold text-red-400">
             {intel?.dangerous_devices || 0}
           </h2>
         </div>
 
         <div className="bg-white/5 border border-green-500/20 rounded-2xl p-6">
-          <p className="text-slate-400 text-sm">
-            System Status
-          </p>
-
+          <p className="text-slate-400 text-sm">System Status</p>
           <h2 className="text-3xl mt-3 font-bold text-green-400">
             SECURE
           </h2>
@@ -179,7 +164,6 @@ function Dashboard() {
 
               <XAxis dataKey="time" stroke="#94a3b8" />
               <YAxis stroke="#94a3b8" />
-
               <Tooltip />
 
               <Line
@@ -208,13 +192,9 @@ function Dashboard() {
 
               <XAxis dataKey="name" stroke="#94a3b8" />
               <YAxis stroke="#94a3b8" />
-
               <Tooltip />
 
-              <Bar
-                dataKey="value"
-                fill="#facc15"
-              />
+              <Bar dataKey="value" fill="#facc15" />
 
             </BarChart>
 
@@ -229,7 +209,7 @@ function Dashboard() {
       {/* ====================== */}
       <div className="grid grid-cols-2 gap-6">
 
-        {/* PIE */}
+        {/* PIE CHART */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 h-[380px]">
 
           <h2 className="text-xl mb-4">
@@ -248,10 +228,7 @@ function Dashboard() {
               >
 
                 {pieData.map((_, i) => (
-                  <Cell
-                    key={i}
-                    fill={COLORS[i]}
-                  />
+                  <Cell key={i} fill={COLORS[i]} />
                 ))}
 
               </Pie>
