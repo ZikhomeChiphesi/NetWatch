@@ -1,267 +1,115 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
-
-const API_URL = "http://localhost:5000";
+import { useCallback, useEffect, useState } from "react";
+import API from "../api/client";
 
 function Agents() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [enrollmentToken, setEnrollmentToken] = useState(null);
 
-  const loadAgents = async () => {
+  const loadAgents = useCallback(async () => {
     try {
-      setLoading(true);
+      const response = await API.get("/agents");
+      setAgents(response.data.agents || []);
       setError("");
-
-      const orgId = localStorage.getItem("org_id");
-
-      if (!orgId) {
-        throw new Error("Organization ID is missing. Please log in again.");
-      }
-
-      const response = await axios.get(`${API_URL}/agents`, {
-        headers: {
-          "X-ORG-ID": orgId,
-        },
-      });
-
-      const data = response.data;
-
-      // Backend returns { agents: [...] }
-      setAgents(Array.isArray(data) ? data : data.agents || []);
     } catch (err) {
-      console.error("Agents error:", err);
-
-      setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Unable to load agents."
-      );
-
-      setAgents([]);
+      setError(err.response?.data?.error || "Unable to load collectors.");
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadAgents();
-
-    const interval = setInterval(loadAgents, 10000);
-
-    return () => clearInterval(interval);
   }, []);
 
-  const formatDate = (value) => {
-    if (!value) return "Never";
+  useEffect(() => {
+    const initialLoad = setTimeout(() => {
+      void loadAgents();
+    }, 0);
 
+    const interval = setInterval(() => {
+      void loadAgents();
+    }, 15000);
+
+    return () => {
+      clearTimeout(initialLoad);
+      clearInterval(interval);
+    };
+  }, [loadAgents]);
+
+  const createEnrollmentToken = async () => {
     try {
-      return new Date(value).toLocaleString();
-    } catch {
-      return value;
+      const response = await API.post("/agent-enrollment-tokens", { ttl_minutes: 15 });
+      setEnrollmentToken(response.data);
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.error || "Unable to create an enrollment token.");
     }
   };
 
   return (
-    <div className="min-h-full">
-
-      {/* HEADER */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-white">
-              Security Agents
-            </h1>
-
-            <p className="text-slate-400 mt-2">
-              Connected NetWatch monitoring agents
-            </p>
-          </div>
-
-          <button
-            onClick={loadAgents}
-            className="px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition"
-          >
-            Refresh
-          </button>
+    <div>
+      <div className="mb-8 flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold">Collectors</h1>
+          <p className="mt-2 text-slate-400">Authenticated network collectors and their real heartbeat state.</p>
         </div>
+        <button onClick={createEnrollmentToken} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">
+          Create enrollment token
+        </button>
       </div>
 
-      {/* SUMMARY */}
-      <div className="grid grid-cols-3 gap-6 mb-8">
+      {error && <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>}
 
-        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <p className="text-slate-400 text-sm">
-            Total Agents
-          </p>
-
-          <h2 className="text-4xl font-bold text-cyan-400 mt-2">
-            {agents.length}
-          </h2>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <p className="text-slate-400 text-sm">
-            Monitoring Status
-          </p>
-
-          <h2 className="text-2xl font-bold text-emerald-400 mt-3">
-            {agents.length > 0 ? "ACTIVE" : "WAITING"}
-          </h2>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <p className="text-slate-400 text-sm">
-            Data Source
-          </p>
-
-          <h2 className="text-2xl font-bold text-white mt-3">
-            NetWatch Agents
-          </h2>
-        </div>
-
-      </div>
-
-      {/* ERROR */}
-      {error && (
-        <div className="mb-6 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300">
-          <p className="font-semibold">
-            Agent data unavailable
-          </p>
-
-          <p className="text-sm mt-1">
-            {error}
+      {enrollmentToken && (
+        <div className="mb-6 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-5">
+          <p className="font-semibold text-cyan-200">One-time collector enrollment token</p>
+          <p className="mt-2 break-all font-mono text-sm">{enrollmentToken.enrollment_token}</p>
+          <p className="mt-2 text-xs text-slate-400">Expires: {new Date(enrollmentToken.expires_at).toLocaleString()}</p>
+          <p className="mt-3 text-sm text-slate-300">
+            Put this value in NETWATCH_ENROLLMENT_TOKEN on the collector machine, run src/agent.py once, then remove it from the environment.
           </p>
         </div>
       )}
 
-      {/* LOADING */}
-      {loading && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-10 text-center">
-          <p className="text-slate-400">
-            Loading security agents...
-          </p>
+      {loading ? (
+        <p className="text-slate-400">Loading collectors...</p>
+      ) : agents.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-10 text-center text-slate-400">
+          No collectors have been enrolled.
         </div>
-      )}
-
-      {/* AGENTS */}
-      {!loading && !error && (
-        <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-
-          <div className="p-5 border-b border-white/10">
-            <div className="flex items-center justify-between">
-
-              <div>
-                <h2 className="text-xl font-semibold text-white">
-                  Registered Agents
-                </h2>
-
-                <p className="text-sm text-slate-500 mt-1">
-                  Agents reporting network telemetry to NetWatch
-                </p>
-              </div>
-
-              <div className="text-sm text-cyan-300">
-                {agents.length} agent{agents.length !== 1 ? "s" : ""}
-              </div>
-
-            </div>
-          </div>
-
-          {agents.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="text-5xl mb-4">
-                ◉
-              </div>
-
-              <h3 className="text-xl text-white">
-                No agents found
-              </h3>
-
-              <p className="text-slate-400 mt-2">
-                NetWatch is waiting for monitoring agents.
-              </p>
-            </div>
-          ) : (
-
-            <div className="divide-y divide-white/5">
-
-              {agents.map((agent, index) => (
-
-                <div
-                  key={agent.agent_id || index}
-                  className="p-5 hover:bg-white/5 transition"
-                >
-
-                  <div className="flex items-center justify-between">
-
-                    <div className="flex items-center gap-4">
-
-                      {/* STATUS */}
-                      <div className="relative">
-                        <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                          <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
-                        </div>
-                      </div>
-
-                      {/* DETAILS */}
-                      <div>
-                        <p className="text-white font-semibold">
-                          NetWatch Agent {index + 1}
-                        </p>
-
-                        <p className="font-mono text-xs text-slate-500 mt-1">
-                          {agent.agent_id}
-                        </p>
-                      </div>
-
-                    </div>
-
-                    {/* RIGHT */}
-                    <div className="text-right">
-
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                        ACTIVE
-                      </div>
-
-                      <p className="text-xs text-slate-500 mt-2">
-                        Last seen: {formatDate(agent.last_seen)}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  {/* NETWORK */}
-                  <div className="mt-4 ml-16">
-
-                    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">
-
-                      <span className="text-slate-500 text-xs">
-                        NETWORK
-                      </span>
-
-                      <span className="text-cyan-300 font-mono text-sm">
-                        {agent.network || "Unknown network"}
-                      </span>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+          <table className="w-full text-left">
+            <thead className="border-b border-white/10 text-xs uppercase text-slate-500">
+              <tr>
+                <th className="p-4">Collector</th>
+                <th className="p-4">Network</th>
+                <th className="p-4">CIDR</th>
+                <th className="p-4">Health</th>
+                <th className="p-4">Last seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.map((agent) => (
+                <tr key={agent.agent_id} className="border-b border-white/5 last:border-0">
+                  <td className="p-4 font-mono text-xs">{agent.agent_id}</td>
+                  <td className="p-4">{agent.network || "Unnamed"}</td>
+                  <td className="p-4 font-mono text-sm">{agent.network_cidr || "Not set"}</td>
+                  <td className="p-4"><StatusBadge status={agent.health_status} /></td>
+                  <td className="p-4 text-sm text-slate-400">{agent.last_seen ? new Date(agent.last_seen).toLocaleString() : "Never"}</td>
+                </tr>
               ))}
-
-            </div>
-
-          )}
-
+            </tbody>
+          </table>
         </div>
       )}
-
     </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  return (
+    <span className="rounded-full border border-white/10 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200">
+      {status}
+    </span>
   );
 }
 

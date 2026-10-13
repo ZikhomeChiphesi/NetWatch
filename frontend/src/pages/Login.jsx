@@ -1,62 +1,85 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { API } from "../api/client";
+import { Link, useNavigate } from "react-router-dom";
+import API from "../api/client";
 
 function Login() {
-
   const [email, setEmail] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [orgId, setOrgId] = useState("");
-
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const login = async () => {
+  const login = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
     try {
+      const response = await API.post("/auth/login", { email, password });
+      const data = response.data;
 
-      // For Phase 10 MVP:
-      // we simulate login using api key + org id
-      localStorage.setItem("api_key", apiKey);
-      localStorage.setItem("org_id", orgId);
+      localStorage.setItem("session_token", data.token);
+      localStorage.setItem("org_id", data.default_org_id);
+      localStorage.setItem("user_email", data.user.email);
 
-      navigate("/");
-
+      navigate("/", { replace: true });
     } catch (err) {
-      console.error(err);
+      setError(err.response?.data?.error || "Unable to log in.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-slate-950 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
+      <form
+        onSubmit={login}
+        className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8"
+      >
+        <h1 className="text-3xl font-bold text-cyan-400">NetWatch</h1>
+        <p className="mt-2 text-slate-400">Sign in to your organization.</p>
 
-      <div className="w-96 bg-white/5 p-6 rounded-xl border border-white/10">
+        {error && (
+          <div className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
-        <h1 className="text-2xl font-bold mb-4">
-          NetWatch Login
-        </h1>
-
+        <label className="mt-6 block text-sm text-slate-300">Email</label>
         <input
-          className="w-full mb-3 p-2 bg-slate-900 rounded"
-          placeholder="Org ID"
-          value={orgId}
-          onChange={(e) => setOrgId(e.target.value)}
+          type="email"
+          required
+          autoComplete="email"
+          className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3 outline-none focus:border-cyan-500/60"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
         />
 
+        <label className="mt-4 block text-sm text-slate-300">Password</label>
         <input
-          className="w-full mb-3 p-2 bg-slate-900 rounded"
-          placeholder="API Key"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
+          type="password"
+          required
+          autoComplete="current-password"
+          className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3 outline-none focus:border-cyan-500/60"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
         />
 
         <button
-          onClick={login}
-          className="w-full bg-cyan-500 py-2 rounded font-bold"
+          type="submit"
+          disabled={loading}
+          className="mt-6 w-full rounded-lg bg-cyan-500 py-3 font-bold text-slate-950 disabled:opacity-50"
         >
-          Login
+          {loading ? "Signing in..." : "Sign in"}
         </button>
 
-      </div>
-
+        <p className="mt-5 text-center text-sm text-slate-400">
+          Need an organization?{" "}
+          <Link to="/register" className="text-cyan-300 hover:text-cyan-200">
+            Create one
+          </Link>
+        </p>
+      </form>
     </div>
   );
 }

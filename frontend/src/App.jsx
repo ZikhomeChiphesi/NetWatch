@@ -1,34 +1,28 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import MainLayout from "./layout/MainLayout";
-
-import Dashboard from "./pages/Dashboard";
 import Agents from "./pages/Agents";
+import Alerts from "./pages/Alerts";
+import Dashboard from "./pages/Dashboard";
 import Intelligence from "./pages/Intelligence";
-import Topology from "./pages/Topology";
-
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Topology from "./pages/Topology";
 
-// =========================
-// PROTECTED ROUTE (SAAS READY)
-// =========================
 const ProtectedRoute = ({ children }) => {
-  const apiKey = localStorage.getItem("api_key");
+  const token = localStorage.getItem("session_token");
+  const orgId = localStorage.getItem("org_id");
 
-  return apiKey ? children : <Navigate to="/login" />;
+  return token && orgId ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* AUTH ROUTES */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* PROTECTED APP */}
         <Route
           path="/"
           element={
@@ -41,8 +35,10 @@ function App() {
           <Route path="agents" element={<Agents />} />
           <Route path="intelligence" element={<Intelligence />} />
           <Route path="topology" element={<Topology />} />
+          <Route path="alerts" element={<Alerts />} />
         </Route>
 
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

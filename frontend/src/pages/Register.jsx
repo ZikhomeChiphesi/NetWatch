@@ -1,58 +1,112 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import API from "../api/client";
-import { useNavigate } from "react-router-dom";
 
 function Register() {
-  const [network, setNetwork] = useState("");
-  const [result, setResult] = useState(null);
-
+  const [orgName, setOrgName] = useState("");
+  const [orgId, setOrgId] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = async () => {
+  const register = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
     try {
-      const res = await API.post("/register", { network });
+      const response = await API.post("/auth/register", {
+        org_name: orgName,
+        org_id: orgId || undefined,
+        email,
+        password,
+      });
 
-      setResult(res.data);
-
-      // auto-login after register
-      localStorage.setItem("api_key", res.data.api_key);
-
-      setTimeout(() => {
-        navigate("/");
-      }, 1000);
-
+      const data = response.data;
+      localStorage.setItem("session_token", data.token);
+      localStorage.setItem("org_id", data.organization.org_id);
+      localStorage.setItem("user_email", data.user.email);
+      navigate("/", { replace: true });
     } catch (err) {
-      console.error(err);
+      setError(err.response?.data?.error || "Unable to create the organization.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0B1220] text-white">
-      <div className="bg-white/5 border border-white/10 p-8 rounded-xl w-[400px]">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
+      <form
+        onSubmit={register}
+        className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/5 p-8"
+      >
+        <h1 className="text-3xl font-bold text-cyan-400">Create NetWatch organization</h1>
+        <p className="mt-2 text-slate-400">
+          This creates the first owner account. Collector enrollment happens separately after login.
+        </p>
 
-        <h1 className="text-2xl mb-4 text-yellow-400">Register Network</h1>
-
-        <input
-          className="w-full p-2 mb-4 bg-black/40 border border-white/10 rounded"
-          placeholder="Network name"
-          value={network}
-          onChange={(e) => setNetwork(e.target.value)}
-        />
-
-        <button
-          onClick={handleRegister}
-          className="w-full bg-yellow-500 hover:bg-yellow-600 p-2 rounded"
-        >
-          Register
-        </button>
-
-        {result && (
-          <div className="mt-4 text-sm text-green-400">
-            API Key Generated ✔
+        {error && (
+          <div className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {error}
           </div>
         )}
 
-      </div>
+        <label className="mt-6 block text-sm text-slate-300">Organization name</label>
+        <input
+          required
+          className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3"
+          value={orgName}
+          onChange={(event) => setOrgName(event.target.value)}
+          placeholder="University Network Lab"
+        />
+
+        <label className="mt-4 block text-sm text-slate-300">Organization ID (optional)</label>
+        <input
+          className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3 font-mono"
+          value={orgId}
+          onChange={(event) => setOrgId(event.target.value)}
+          placeholder="UNZA-LAB"
+        />
+
+        <label className="mt-4 block text-sm text-slate-300">Owner email</label>
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+
+        <label className="mt-4 block text-sm text-slate-300">Password</label>
+        <input
+          type="password"
+          required
+          minLength={12}
+          autoComplete="new-password"
+          className="mt-2 w-full rounded-lg border border-white/10 bg-slate-900 p-3"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="At least 12 characters"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="mt-6 w-full rounded-lg bg-cyan-500 py-3 font-bold text-slate-950 disabled:opacity-50"
+        >
+          {loading ? "Creating..." : "Create organization"}
+        </button>
+
+        <p className="mt-5 text-center text-sm text-slate-400">
+          Already registered?{" "}
+          <Link to="/login" className="text-cyan-300 hover:text-cyan-200">
+            Sign in
+          </Link>
+        </p>
+      </form>
     </div>
   );
 }

@@ -1,23 +1,19 @@
 import axios from "axios";
 
-// =========================
-// BASE API
-// =========================
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const API = axios.create({
-  baseURL: "http://localhost:5000",
-  timeout: 10000
+  baseURL: API_BASE_URL,
+  timeout: 10000,
 });
 
-// =========================
-// AUTO ATTACH AUTH HEADERS
-// =========================
 API.interceptors.request.use((config) => {
-
-  const apiKey = localStorage.getItem("api_key");
+  const token = localStorage.getItem("session_token");
   const orgId = localStorage.getItem("org_id");
 
-  if (apiKey) {
-    config.headers["X-API-Key"] = apiKey;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
 
   if (orgId) {
@@ -27,14 +23,20 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// =========================
-// GLOBAL ERROR HANDLING
-// =========================
 API.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    console.error("API Error:", err?.response?.data || err.message);
-    return Promise.reject(err);
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.removeItem("session_token");
+      localStorage.removeItem("org_id");
+      localStorage.removeItem("user_email");
+
+      if (window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
+    }
+
+    return Promise.reject(error);
   }
 );
 
