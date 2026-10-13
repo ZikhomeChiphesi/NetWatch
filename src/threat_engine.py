@@ -1,150 +1,121 @@
-import json
-import os
+from __future__ import annotations
 
-BASELINE_FILE = "trusted_devices.json"
+import ipaddress
+import re
+from typing import Any
 
-
-# =========================
-# LOAD TRUSTED DEVICES
-# =========================
-def load_trusted_devices():
-
-    if not os.path.exists(BASELINE_FILE):
-        return []
-
-    with open(BASELINE_FILE, "r") as f:
-        return json.load(f)
+MAC_RE = re.compile(r"^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$", re.IGNORECASE)
 
 
-# =========================
-# SAVE TRUSTED DEVICES
-# =========================
-def save_trusted_devices(devices):
-
-    with open(BASELINE_FILE, "w") as f:
-        json.dump(devices, f, indent=4)
+def normalize_mac(mac: str | None) -> str:
+    if not mac:
+        return "unknown"
+    return mac.strip().lower().replace("-", ":")
 
 
-# =========================
-# AUTO-TRUST BASELINE
-# =========================
-def initialize_baseline(devices):
-
-    trusted = load_trusted_devices()
-
-    if trusted:
-        return
-
-    macs = [d["mac"] for d in devices]
-
-    save_trusted_devices(macs)
-
-    print("[BASELINE] Trusted devices initialized")
-
-
-# =========================
-# CHECK TRUST STATUS
-# =========================
-def is_trusted(mac):
-
-    trusted = load_trusted_devices()
-
-    return mac in trusted
-
-
-# =========================
-# ADD TRUSTED DEVICE
-# =========================
-def add_trusted_device(mac):
-
-    trusted = load_trusted_devices()
-
-    if mac not in trusted:
-        trusted.append(mac)
-
-    save_trusted_devices(trusted)
-
-
-# =========================
-# DEVICE ANALYSIS
-# =========================
-def analyze_device(device, known_devices=None):
-
-    mac = device.get("mac", "unknown")
-    ip = device.get("ip", "unknown")
-
-    score = 0
-    reasons = []
-
-    if known_devices is not None:
-        known_macs = {d["mac"] for d in known_devices}
-        trusted = mac in known_macs
-    else:
-        trusted = is_trusted(mac)
-    ...
-
-    # =========================
-    # UNKNOWN DEVICE
-    # =========================
-    if not trusted:
-
-        score += 70
-
-        reasons.append(
-            "Unknown / untrusted device detected"
-        )
-
-    # =========================
-    # UNUSUAL IP RANGE
-    # =========================
-    if not ip.startswith("192.168."):
-
-        score += 15
-
-        reasons.append(
-            "Unusual IP range"
-        )
-
-    # =========================
-    # THREAT LEVEL
-    # =========================
+def _severity(score: int) -> str:
     if score >= 80:
-        severity = "CRITICAL"
+        return "CRITICAL"
+    if score >= 60:
+        return "HIGH"
+    if score >= 30:
+        return "MEDIUM"
+    return "LOW"
 
-    elif score >= 60:
-        severity = "HIGH"
 
-    elif score >= 30:
-        severity = "MEDIUM"
+def analyze_device(
+    device: dict[str, Any],
+    *,
+    trusted: bool = False,
+    expected_network_cidr: str | None = None,
+) -> dict[str, Any]:
+    """
+    Explainable deterministic risk scoring for the telemetry NetWatch actually has today.
 
-    else:
-        severity = "LOW"
+    Important design rule: private address families are not considered suspicious by
+    themselves. Network membership is evaluated against the collector's configured
+    CIDR, not against a hard-coded 192.168/16 assumption.
+    """
 
-    # =========================
-    # CONFIDENCE SCORE
-    # =========================
-    confidence = min(100, score + 20)
+    raw_ip = str(device.get("ip") or "").strip()
+    mac = normalize_mac(device.get("mac"))
+    score = 0
+    reasons: list[dict[str, Any]] = []
 
-    # =========================
-    # SUSPICIOUS FLAG
-    # =========================
-    suspicious = (
-        not trusted and score >= 60
-    )
+    try:
+        ip_obj = ipaddress.ip_address(raw_ip)
+        valid_ip = True
+    except ValueError:
+        ip_obj = None
+        valid_ip = False
+        score += 35
+        reasons.append(
+            {
+                "signal": "invalid_ip",
+                "weight": 35,
+                "detail": "The reported IP address is not syntactically valid.",
+            }
+        )
 
-    # =========================
-    # VENDOR PLACEHOLDER
-    # =========================
-    vendor = "Unknown Vendor"
+    if not MAC_RE.match(mac):
+        score += 35
+        reasons.append(
+            {
+                "signal": "invalid_mac",
+                "weight": 35,
+                "detail": "The reported MAC address is missing or malformed.",
+            }
+        )
+
+    if not trusted:
+        score += 40
+        reasons.append(
+            {
+                "signal": "untrusted_device",
+                "weight": 40,
+                "detail": "The device is not marked as trusted for this organization.",
+            }
+        )
+
+    if valid_ip and expected_network_cidr:
+        try:
+            expected_network = ipaddress.ip_network(expected_network_cidr, strict=False)
+            if ip_obj not in expected_network:
+                score += 25
+                reasons.append(
+                    {
+                        "signal": "outside_expected_network",
+                        "weight": 25,
+                        "detail": (
+                            f"The address {raw_ip} is outside the collector's configured "
+                            f"network {expected_network_cidr}."
+                        ),
+                    }
+                )
+        except ValueError:
+            # A bad server-side collector configuration should not make every endpoint
+            # look malicious. Configuration health is reported separately by the API.
+            reasons.append(
+                {
+                    "signal": "collector_network_unconfigured",
+                    "weight": 0,
+                    "detail": "The collector's configured CIDR could not be evaluated.",
+                }
+            )
+
+    score = max(0, min(100, score))
+    level = _severity(score)
+
+    evidence_count = len([reason for reason in reasons if reason["weight"] > 0])
+    confidence = min(95, 45 + evidence_count * 15) if evidence_count else 40
 
     return {
-        "ip": ip,
+        "ip": raw_ip or "unknown",
         "mac": mac,
         "score": score,
-        "level": severity,
+        "level": level,
         "confidence": confidence,
         "trusted": trusted,
-        "suspicious": suspicious,
-        "vendor": vendor,
-        "reasons": reasons
+        "suspicious": score >= 60,
+        "reasons": reasons,
     }
