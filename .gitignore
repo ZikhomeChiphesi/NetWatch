@@ -238,3 +238,9 @@ Thumbs.db
 *.backup
 *.old.txt
 src/agent_key.txt
+!.env.example
+*.py[cod]
+.venv/
+.netwatch_agent.json
+/node_modules/
+logs/
