@@ -36,6 +36,10 @@ The backend stores observations, maintains device profiles, calculates current r
 
 ![NetWatch alerts workflow](docs/screenshots/alerts.png)
 
+### Risk Intelligence
+
+![NetWatch risk intelligence page](docs/screenshots/risk-intelligence.png)
+
 ### Device Inventory
 
 ![NetWatch discovered device inventory](docs/screenshots/topology.png)
